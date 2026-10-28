@@ -1,0 +1,31 @@
+digraph G {
+  rankdir=TB; fontname="Helvetica"; node [shape=record, fontname="Helvetica", fontsize=10, style=filled, fillcolor="#F4F6FA"]; edge [fontname="Helvetica", fontsize=9];
+  subgraph cluster_ui { label="Interface"; style=dashed; CLI [label="{CLI (__main__)|search / overdue / issue / return\lrenew / reserve / pay / register\l}", fillcolor="#FFF4D6"]; }
+  subgraph cluster_svc { label="Service layer (business rules)"; style=dashed;
+    Lending [label="{LendingService|+issue(member, copy)\l+return_copy(copy)\l+renew(loan)\l+pay_fines(member)\l}", fillcolor="#DDEBFF"];
+    Resv [label="{ReservationService|+reserve(member, book)\l+cancel(id)\l+expire_holds()\l-_release_copy()\l}", fillcolor="#DDEBFF"];
+    Memb [label="{MemberService|+register()\l+change_tier()\l}", fillcolor="#DDEBFF"];
+    Cat [label="{CatalogService|+add_book()\l+add_copy()\l+search()\l}", fillcolor="#DDEBFF"];
+    Rep [label="{ReportService|+overdue_report(branch)\l}", fillcolor="#DDEBFF"];
+    UoW [label="{UnitOfWork|+__enter__() BEGIN\l+__exit__() COMMIT/ROLLBACK\l}", fillcolor="#E4F7E4"];
+  }
+  subgraph cluster_fine { label="Fine calculation (Strategy)"; style=dashed;
+    FC [label="{FineCalculator|+fine(tier, due, returned)\l}", fillcolor="#FDE3E3"];
+    Cal [label="{LibraryCalendar|+is_closed(day)\l+effective_due(due)\l+chargeable_days(due, ret)\l}", fillcolor="#FDE3E3"];
+    FP [label="{«interface»\nFinePolicy|+amount_for(days)\l}", fillcolor="#FDE3E3"];
+    Flat [label="{FlatRatePolicy}", fillcolor="#FDE3E3"]; Esc [label="{EscalatingPolicy}", fillcolor="#FDE3E3"];
+  }
+  subgraph cluster_repo { label="Repository layer (only place with SQL)"; style=dashed;
+    Repos [label="{Repositories (bundle)|tiers, members, books, copies\lloans, reservations, fines, holidays\l}", fillcolor="#EFE4FB"]; }
+  subgraph cluster_dom { label="Domain model"; style=dashed;
+    Tier [label="{Tier|max_loans, loan_days\lmax_renewals, fine settings\l}"]; Member [label="{Member|status\l+is_active\l}"];
+    Book [label="{Book|isbn, title, author\l}"]; Copy [label="{Copy|status\l+is_available\l}"];
+    Loan [label="{Loan|issued_on, due_on\lreturned_on, renewals\l+is_open\l}"]; Res [label="{Reservation|status, held_copy_id\lexpires_on\l}"]; }
+  CLI -> Lending; CLI -> Resv; CLI -> Memb; CLI -> Cat; CLI -> Rep;
+  Lending -> Resv [label="hands copy\nto queue"]; Lending -> UoW; Resv -> UoW;
+  Lending -> FC [label="creates via factory"]; Rep -> FC; FC -> Cal; FC -> FP [label="policy_for(tier)"];
+  Flat -> FP [arrowhead=empty, style=dashed]; Esc -> FP [arrowhead=empty, style=dashed];
+  Lending -> Repos; Resv -> Repos; Memb -> Repos; Cat -> Repos; Rep -> Repos;
+  Repos -> Tier; Repos -> Member; Repos -> Book; Repos -> Copy; Repos -> Loan; Repos -> Res;
+  Member -> Tier [label="tier_id", style=dotted]; Copy -> Book [style=dotted, label="book_id"]; Loan -> Copy [style=dotted]; Loan -> Member [style=dotted]; Res -> Book [style=dotted];
+}
